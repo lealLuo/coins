@@ -76,20 +76,22 @@ then use `lotion` command to query the state
 Then build a client:
 `wallet.js`:
 ```js
-let lotion = require('lotion')
-let coins = require('coins')
+let lotion = require('lotion');
+let coins = require('coins');
+
 async function main() {
-  let client = await lotion.connect(APP_GCI) //app.js返回的GCI
-  let wallet = coins.wallet(client)
+  let client = await lotion.connect({Your_GCI}) // GCI you get from app.js
+  let wallet = coins.wallet(Buffer.from({Your_Wallet_Seed}, 'hex'), client) // You can check your wallet seed from ~/.coin
 
   // wallet methods:
   let address = wallet.address()
-  console.log(address) // 'OGccsuLV2xuoDau1XRc6hc7uO24'
+  console.log("Address of wallet is " + address)
 
   let balance = await wallet.balance()
-  console.log(balance) // 20
+  console.log("balance is " + balance)
 
   let result = await wallet.send('04oDVBPIYP8h5V1eC1PSc5JU6Vo', 5)
+  console.log("tx sending result is \n")
   console.log(result)
 }
 
