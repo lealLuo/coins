@@ -42,13 +42,35 @@ app.use(coins({
   // coins options
   name: 'kittycoin',
   initialBalances: {
-    'BD3EaPRLquuHx7DMcSQ2YX54frnSEZ3YD': 21000000
+    'BD3EaPRLquuHx7DMcSQ2YX54frnSEZ3YD': 21000000 // 填上你自己得到的地址
   }
 }))
 
-app.listen(3000).then(({ GCI }) => {
+app.start().then(({ GCI }) => {
   console.log('App GCI:', GCI)
 })
+```
+
+run app.js, and you can get GCI.
+
+```sh
+[root@localhost coins-test]# node app.js
+App GCI: 037ee4e92643ee114415f9a0b97c1faf78e347f3324983fbfbc9196ecda1b5d7
+```
+
+then use `lotion` command to query the state
+
+```sh
+[root@localhost coins-test]# lotion state 037ee4e92643ee114415f9a0b97c1faf78e347f3324983fbfbc9196ecda1b5d7
+{
+  "accounts": {
+    "8eMpgiig1KoqHMvxkUuemMKxkeMDSNwdQ": {
+      "balance": 21000000,
+      "sequence": 0
+    }
+  },
+  "fee": {}
+}
 ```
 
 Then build a client:
@@ -56,20 +78,58 @@ Then build a client:
 ```js
 let lotion = require('lotion')
 let coins = require('coins')
-let client = await lotion.connect(APP_GCI)
-let wallet = coins.wallet(client)
+async function main() {
+  let client = await lotion.connect(APP_GCI) //app.js返回的GCI
+  let wallet = coins.wallet(client)
 
-// wallet methods:
-let address = wallet.address()
-console.log(address) // 'OGccsuLV2xuoDau1XRc6hc7uO24'
+  // wallet methods:
+  let address = wallet.address()
+  console.log(address) // 'OGccsuLV2xuoDau1XRc6hc7uO24'
 
-let balance = await wallet.balance()
-console.log(balance) // 20
+  let balance = await wallet.balance()
+  console.log(balance) // 20
 
-let result = await wallet.send('04oDVBPIYP8h5V1eC1PSc5JU6Vo', 5)
-console.log(result) // { height: 42 }
+  let result = await wallet.send('04oDVBPIYP8h5V1eC1PSc5JU6Vo', 5)
+  console.log(result)
+}
+
+main()
 ```
 
+Replace `YOUR_GCI` to the GCI you get from `app.js`.
+
+run wallet.js
+
+```sh
+[root@localhost coins-test]# node wallet.js 
+Address of wallet is 8eMpgiig1KoqHMvxkUuemMKxkeMDSNwdQ
+balance is 21000000
+tx sending result is 
+
+{ check_tx: {},
+  deliver_tx: {},
+  hash: '8E7C40B70BA23DA5A1E413EBFDCE72FA5191F376',
+  height: '206' }
+```
+
+and query the state again:
+
+```sh
+[root@localhost coins-test]# lotion state 037ee4e92643ee114415f9a0b97c1faf78e347f3324983fbfbc9196ecda1b5d7
+{
+  "accounts": {
+    "04oDVBPIYP8h5V1eC1PSc5JU6Vo": {
+      "balance": 5,
+      "sequence": 0
+    },
+    "8eMpgiig1KoqHMvxkUuemMKxkeMDSNwdQ": {
+      "balance": 20999995,
+      "sequence": 1
+    }
+  },
+  "fee": {}
+}
+```
 
 ### Writing your own advanced coin handler
 
@@ -88,21 +148,21 @@ app.use(coins({
     },
     handlers: {
       'my-module': {
-        onInput(input, tx, state) {
+        onInput(input, state) {
           // this function is called when coins of
           // this type are used as a transaction input.
 
           // if the provided input isn't valid, throw an error.
-          if(isNotValid(input)) {
-            throw Error('this input isn\'t valid!')
-          }
+          //if(isNotValid(input)) {
+          //  throw Error('this input isn\'t valid!')
+          //}
 
           // if the input is valid, update the state to
           // reflect the coins having been spent.
-          state[input.senderAddress] -= input.amount
+          state[input.senderAddress] = (state[input.senderAddress] || 0) - input.amount
         },
 
-        onOutput(output, tx, state) {
+        onOutput(output, state) {
           // here's where you handle coins of this type
           // being received as a tx output.
 
@@ -112,33 +172,100 @@ app.use(coins({
         }
       }
     }
-  }
 }))
 
-app.listen(3000)
+app.start().then(({ GCI }) => {
+  console.log('App GCI:', GCI)
+})
 ```
 
-run `node chain.js`, then write
+run `node chain.js`
+
+```sh
+[root@localhost coins-test]# node chain.js 
+App GCI: cac4e20583c945e7dee92a2d1ac6d63aafae286eaf544691af5b66b93ea1cd8f
+```
+
+use `lotion` command to query the state.
+
+```sh
+[root@localhost coins-test]# lotion state cac4e20583c945e7dee92a2d1ac6d63aafae286eaf544691af5b66b93ea1cd8f
+{
+  "accounts": {
+    "judd": {
+      "balance": 10,
+      "sequence": 0
+    },
+    "matt": {
+      "balance": 10,
+      "sequence": 0
+    }
+  },
+  "fee": {},
+  "my-module": {}
+}
+```
+
+then write
 `client.js`:
 ```js
 let lotion = require('lotion')
 let client = await lotion.connect(YOUR_APP_GCI)
 
-let result = await client.send({
-  from: [
-    // tx inputs. each must include an amount:
-    { amount: 4, type: 'my-module', senderAddress: 'judd' }
-  ],
-  to: [
-    // tx outputs. sum of amounts must equal sum of amounts of inputs.
-    { amount: 4, type: 'my-module', receiverAddress: 'matt' }
-  ]
-})
+async function main() {
+  let result = await client.send({
+    from: [
+      // tx inputs. each must include an amount:
+      { amount: 4, type: 'my-module', senderAddress: 'judd' }
+    ],
+    to: [
+      // tx outputs. sum of amounts must equal sum of amounts of inputs.
+      { amount: 4, type: 'my-module', receiverAddress: 'matt' }
+    ]
+  })
 
-console.log(result)
-// { ok: true, height: 42 }
+  console.log(result)
+}
 
+main()
 ```
+
+Replace `YOUR_APP_GCI` to the `GCI` you got.
+
+then run `client.js`
+
+```sh
+[root@localhost coins-test]# node client.js 
+{ check_tx: {},
+  deliver_tx: {},
+  hash: 'F3FA8FC8564C2D8FE49B54C14D3D6C1F19045384',
+  height: '170' }
+```
+
+query the state
+
+```sh
+[root@localhost coins-test]# lotion state cac4e20583c945e7dee92a2d1ac6d63aafae286eaf544691af5b66b93ea1cd8f
+{
+  "accounts": {
+    "judd": {
+      "balance": 10,
+      "sequence": 0
+    },
+    "matt": {
+      "balance": 10,
+      "sequence": 0
+    }
+  },
+  "fee": {},
+  "my-module": {
+    "judd": -4,
+    "matt": 4
+  }
+}
+```
+
+
 ## License
 
 MIT
